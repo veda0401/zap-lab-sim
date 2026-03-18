@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Light Attenuation Simulation</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Light Attenuation Simulation</h1>
+    <p>Interactive browser-based demo</p>
+  </header>
+
+  <main class="container">
+    <section class="controls">
+      <h2>Inputs</h2>
+
+      <label>
+        Initial Intensity (I₀)
+        <input type="number" id="i0" value="100" step="1" />
+      </label>
+
+      <label>
+        Absorption Coefficient (k)
+        <input type="number" id="k" value="0.5" step="0.01" />
+      </label>
+
+      <label>
+        Path Length (L)
+        <input type="number" id="L" value="10" step="0.1" />
+      </label>
+
+      <label>
+        Number of Wavelengths
+        <select id="nWaves">
+          <option value="3">3</option>
+          <option value="5" selected>5</option>
+          <option value="7">7</option>
+        </select>
+      </label>
+
+      <button id="updateBtn">Update Simulation</button>
+    </section>
+
+    <section class="output">
+      <h2>Plot</h2>
+      <div id="plot"></div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
