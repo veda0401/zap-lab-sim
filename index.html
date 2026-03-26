@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <!-- makes layout responsive on mobile devices -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Light Attenuation Simulation</title>
+  <!-- external css file -->
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
 </head>
@@ -14,6 +16,7 @@
   </header>
 
   <main class="container">
+    <!-- INPUT CONTROLS SECTION -->
     <section class="controls">
       <h2>Inputs</h2>
 
@@ -31,7 +34,8 @@
         Path Length (L)
         <input type="number" id="L" value="10" step="0.1" />
       </label>
-
+      
+      <!-- dropdown for # of wavelengths -->
       <label>
         Number of Wavelengths
         <select id="nWaves">
@@ -44,12 +48,18 @@
       <button id="updateBtn">Update Simulation</button>
     </section>
 
+    <!-- OUTPUT + GRAPH SECTION -->
     <section class="output">
       <h2>Plot</h2>
+
+      <!-- plotly render of graph -->
       <div id="plot"></div>
     </section>
   </main>
 
+  <!-- javascript file link -->
   <script src="script.js"></script>
+
+  <!-- add matlab backend-->
 </body>
 </html>
