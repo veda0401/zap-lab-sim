@@ -2,64 +2,107 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <!-- makes layout responsive on mobile devices -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Light Attenuation Simulation</title>
-  <!-- external css file -->
+  <title>Quantum Yield Calculator</title>
+
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+
+  <!-- Plotly for graphs -->
+  <script src="https://cdn.plot.ly/plotly-3.4.0.min.js" charset="utf-8"></script>
+
+  <!-- SheetJS for reading Excel files in the browser -->
+  <script type="text/javascript" src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <header>
-    <h1>Light Attenuation Simulation</h1>
-    <p>Interactive browser-based demo</p>
+  <header class="hero">
+    <h1>Quantum Yield Calculator</h1>
+    <p>Browser-based absorbance, LED, and photon analysis tool</p>
   </header>
 
   <main class="container">
-    <!-- INPUT CONTROLS SECTION -->
-    <section class="controls">
-      <h2>Inputs</h2>
+    <section class="card">
+      <h2>1. Upload Input Files</h2>
 
       <label>
-        Initial Intensity (I₀)
-        <input type="number" id="i0" value="100" step="1" />
+        Absorbance Excel File
+        <input type="file" id="absFile" accept=".xls,.xlsx" />
       </label>
 
       <label>
-        Absorption Coefficient (k)
-        <input type="number" id="k" value="0.5" step="0.01" />
+        LED Emission Excel File
+        <input type="file" id="ledFile" accept=".xls,.xlsx" />
       </label>
-
-      <label>
-        Path Length (L)
-        <input type="number" id="L" value="10" step="0.1" />
-      </label>
-      
-      <!-- dropdown for # of wavelengths -->
-      <label>
-        Number of Wavelengths
-        <select id="nWaves">
-          <option value="3">3</option>
-          <option value="5" selected>5</option>
-          <option value="7">7</option>
-        </select>
-      </label>
-
-      <button id="updateBtn">Update Simulation</button>
     </section>
 
-    <!-- OUTPUT + GRAPH SECTION -->
-    <section class="output">
-      <h2>Plot</h2>
+    <section class="card">
+      <h2>2. Absorbance Inputs</h2>
 
-      <!-- plotly render of graph -->
-      <div id="plot"></div>
+      <label>
+        Original Pathlength L1 (cm)
+        <input type="number" id="l1" value="1.0" step="0.01" />
+      </label>
+
+      <label>
+        Original Concentration C1 (mol/L)
+        <input type="number" id="c1" value="1.0" step="0.001" />
+      </label>
+
+      <label>
+        FTIR Pathlength L2 (cm)
+        <input type="number" id="l2" value="1.0" step="0.01" />
+      </label>
+
+      <label>
+        FTIR Concentration C2 (mol/L)
+        <input type="number" id="c2" value="1.0" step="0.001" />
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>3. LED and Kinetics Inputs</h2>
+
+      <label>
+        LED Intensity (mW/cm²)
+        <input type="number" id="intensity" value="1.0" step="0.1" />
+      </label>
+
+      <label>
+        FTIR Conversion Fraction Rate (fraction/s)
+        <input type="number" id="rateFTIR" value="0.0001" step="0.0001" />
+      </label>
+
+      <label>
+        Monomer Concentration (mol/L)
+        <input type="number" id="monomerConc" value="0.01" step="0.001" />
+      </label>
+
+      <label>
+        Number of Gaussian Components
+        <input type="number" id="nGaussians" value="2" min="1" max="5" step="1" />
+      </label>
+    </section>
+
+    <section class="card actions">
+      <h2>4. Run Analysis</h2>
+      <button id="runBtn">Run Calculation</button>
+      <p id="status">Waiting for files and inputs.</p>
+    </section>
+
+    <section class="card">
+      <h2>Results Summary</h2>
+      <div id="results"></div>
+    </section>
+
+    <section class="card">
+      <h2>Plots</h2>
+      <div id="plotExtinction" class="plot"></div>
+      <div id="plotNewAbs" class="plot"></div>
+      <div id="plotLED" class="plot"></div>
+      <div id="plotPhoton" class="plot"></div>
+      <div id="plotFractions" class="plot"></div>
     </section>
   </main>
 
-  <!-- javascript file link -->
   <script src="script.js"></script>
-
-  <!-- add matlab backend-->
 </body>
 </html>
