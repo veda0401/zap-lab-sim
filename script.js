@@ -84,7 +84,7 @@ function trapz(x, y) {
 }
 
 function gaussian(x, a, b, c) {
-  return a * Math.exp(-((x - b) / c) ** 2);
+  return a * Math.exp(-(((x - b) / c) ** 2));
 }
 
 // Still an approximation, but improved to be a bit more stable.
