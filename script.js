@@ -164,26 +164,29 @@ function runCalculation(absData, ledData, inputs) {
   const conversionFactor = ledIntegral / inputs.intensity;
   const ledAreaNorm = baseLED.map((v) => v / conversionFactor);
 
-  const gaussLEDOnLEDGrid = buildGaussianFit(
+    const gaussLEDOnLEDGrid = buildGaussianFit(
     ledWavelengths,
     ledAreaNorm,
     inputs.nGaussians
   );
 
-  const gaussLED = wavelengths.map((w) =>
-    interpolate(ledWavelengths, gaussLEDOnLEDGrid, w)
+  // Interpolate absorbance onto the LED wavelength grid
+  const newAbsOnLEDGrid = ledWavelengths.map((w) =>
+    interpolate(wavelengths, newAbs, w)
   );
 
-  const NRG = wavelengths.map((w) => PLANCK * LIGHT_SPEED / (w * 1e-9));
-  const NP = gaussLED.map((g, i) => (g / 1000) / NRG[i]);
+  // Use AREA-NORMALIZED LED for the actual photon calculations
+  // Keep Gaussian only for plotting/visualization
+  const NRG = ledWavelengths.map((w) => PLANCK * LIGHT_SPEED / (w * 1e-9));
+  const NP = ledAreaNorm.map((g, i) => (g / 1000) / NRG[i]);
 
-  const FPT = newAbs.map((a) => 10 ** (-a));
+  const FPT = newAbsOnLEDGrid.map((a) => 10 ** (-a));
   const FPA = FPT.map((v) => 1 - v);
 
   const AP = NP.map((n, i) => n * FPA[i]);
 
-  const totalAbsorbed = trapz(wavelengths, AP);
-  const totalLED = trapz(wavelengths, NP);
+  const totalAbsorbed = trapz(ledWavelengths, AP);
+  const totalLED = trapz(ledWavelengths, NP);
 
   if (totalLED === 0) {
     throw new Error("Total LED photons calculated as zero.");
@@ -208,7 +211,7 @@ function runCalculation(absData, ledData, inputs) {
     baseLED,
     ledAreaNorm,
     gaussLEDOnLEDGrid,
-    gaussLED,
+    newAbsOnLEDGrid,
     NRG,
     NP,
     FPT,
@@ -335,25 +338,25 @@ function renderResults(result) {
     "Intensity"
   );
 
-  plotLine(
+    plotLine(
     "plotPhoton",
-    result.wavelengths,
+    result.ledWavelengths,
     result.NP,
     "Photon Count vs Wavelength",
     "Wavelength (nm)",
     "Photons"
   );
 
-  plotTwoLines(
+    plotTwoLines(
     "plotFractions",
     [
       {
-        x: result.wavelengths,
+        x: result.ledWavelengths,
         y: result.FPT,
         name: "Fraction Transmitted"
       },
       {
-        x: result.wavelengths,
+        x: result.ledWavelengths,
         y: result.FPA,
         name: "Fraction Absorbed"
       }
