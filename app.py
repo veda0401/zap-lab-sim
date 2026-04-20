@@ -440,83 +440,46 @@ if st.session_state.led_area_norm is not None:
 # -----------------------------------------------------------------------------
 # STEP 5: PHOTON CALCULATIONS
 # -----------------------------------------------------------------------------
-if st.session_state.gauss_led is not None and st.session_state.new_abs_on_led is not None:
+if st.session_state.led_area_norm is not None and st.session_state.new_abs is not None:
     st.header("Step 5: Photon Calculations")
 
     if st.button("Calculate Photon Metrics", key="calc_photons_btn"):
-        metrics = calculate_photon_metrics(
-            st.session_state.led_wavelengths,
-            st.session_state.gauss_led,
-            st.session_state.new_abs_on_led
+        new_abs_on_led, interp_error = interpolate_absorbance_to_led(
+            st.session_state.wavelengths_abs,
+            st.session_state.new_abs,
+            st.session_state.led_wavelengths
         )
 
-        if metrics.get("error"):
-            st.error(metrics["error"])
+        if interp_error:
+            st.error(interp_error)
         else:
-            st.session_state.photon_metrics = metrics
+            st.session_state.new_abs_on_led = new_abs_on_led
 
-            abs_result = calculate_absorbed_photons(
+            # IMPORTANT: use led_area_norm, not gauss_led
+            metrics = calculate_photon_metrics(
                 st.session_state.led_wavelengths,
-                metrics["NP"],
-                metrics["FPA"]
+                st.session_state.led_area_norm,
+                st.session_state.new_abs_on_led
             )
 
-            if abs_result.get("error"):
-                st.error(abs_result["error"])
+            if metrics.get("error"):
+                st.error(metrics["error"])
             else:
-                st.session_state.total_absorbed = abs_result["total_absorbed"]
-                st.session_state.total_led = abs_result["total_led"]
-                st.session_state.efficiency = abs_result["efficiency"]
-                st.success("✓ Photon metrics calculated")
+                st.session_state.photon_metrics = metrics
 
-    if st.session_state.photon_metrics is not None:
-        metrics = st.session_state.photon_metrics
+                abs_result = calculate_absorbed_photons(
+                    st.session_state.led_wavelengths,
+                    metrics["NP"],
+                    metrics["FPA"]
+                )
 
-        col1, col2 = st.columns(2)
-
-        with col1:
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.plot(st.session_state.led_wavelengths, metrics["NP"], linewidth=2, color="purple")
-            ax.set_title("Number of Photons vs Wavelength", fontsize=11, fontweight="bold")
-            ax.set_xlabel("Wavelength (nm)")
-            ax.set_ylabel("Photons")
-            ax.grid(alpha=0.3)
-            st.pyplot(fig)
-
-        with col2:
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.plot(st.session_state.led_wavelengths, metrics["FPT"], linewidth=2, color="orange")
-            ax.set_title("Fraction Photons Transmitted", fontsize=11, fontweight="bold")
-            ax.set_xlabel("Wavelength (nm)")
-            ax.set_ylabel("Fraction Transmitted")
-            ax.grid(alpha=0.3)
-            st.pyplot(fig)
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.plot(st.session_state.led_wavelengths, metrics["FPA"], linewidth=2, color="red")
-            ax.set_title("Fraction Photons Absorbed", fontsize=11, fontweight="bold")
-            ax.set_xlabel("Wavelength (nm)")
-            ax.set_ylabel("Fraction Absorbed")
-            ax.grid(alpha=0.3)
-            st.pyplot(fig)
-
-        with col2:
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.plot(st.session_state.led_wavelengths, metrics["NRG"], linewidth=2, color="brown")
-            ax.set_title("Energy per Photon vs Wavelength", fontsize=11, fontweight="bold")
-            ax.set_xlabel("Wavelength (nm)")
-            ax.set_ylabel("Energy (J)")
-            ax.grid(alpha=0.3)
-            st.pyplot(fig)
-
-        st.subheader("Photon Summary")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total LED Photons", f"{st.session_state.total_led:.2e} photons/cm²/s")
-        col2.metric("Total Absorbed Photons", f"{st.session_state.total_absorbed:.2e} photons/cm²/s")
-        col3.metric("Absorption Efficiency", f"{st.session_state.efficiency:.2f}%")
+                if abs_result.get("error"):
+                    st.error(abs_result["error"])
+                else:
+                    st.session_state.total_absorbed = abs_result["total_absorbed"]
+                    st.session_state.total_led = abs_result["total_led"]
+                    st.session_state.efficiency = abs_result["efficiency"]
+                    st.success("✓ Photon metrics calculated")
 
 
 # -----------------------------------------------------------------------------
