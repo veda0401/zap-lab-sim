@@ -296,74 +296,94 @@ function renderResults(result) {
     </div>
   `;
 
+  // 1. Calculated Extinction Coefficient
   plotLine(
     "plotExtinction",
     result.wavelengths,
     result.extinction,
-    "Extinction Coefficient",
+    "Calculated Extinction Coefficient",
     "Wavelength (nm)",
-    "Extinction Coefficient"
+    "Extinction Coefficient (M⁻¹ cm⁻¹)"
   );
 
-  plotLine(
-    "plotNewAbs",
-    result.wavelengths,
-    result.newAbs,
-    "Scaled Absorbance",
-    "Wavelength (nm)",
-    "Absorbance"
-  );
-
+  // 2. Corrected & Raw LED Emission Spectra
   plotTwoLines(
     "plotLED",
     [
       {
         x: result.ledWavelengths,
+        y: result.rawLED,
+        name: "Raw LED"
+      },
+      {
+        x: result.ledWavelengths,
         y: result.baseLED,
-        name: "Baselined LED"
-      },
-      {
-        x: result.ledWavelengths,
-        y: result.ledAreaNorm,
-        name: "Area-Normalized LED"
-      },
-      {
-        x: result.ledWavelengths,
-        y: result.gaussLEDOnLEDGrid,
-        name: "Gaussian Approximation"
+        name: "Baselined"
       }
     ],
-    "LED Spectra",
-    "Wavelength (nm)",
-    "Intensity"
+    "Corrected & Raw LED Emission Spectra",
+    "Wavelength",
+    "Counts"
   );
 
-    plotLine(
-    "plotPhoton",
-    result.ledWavelengths,
-    result.NP,
-    "Photon Count vs Wavelength",
+  // 3. Normalized (max=1) Overlap
+  const maxAbs = Math.max(...result.newAbsOnLEDGrid);
+  const maxLED = Math.max(...result.ledAreaNorm);
+
+  const normAbs = result.newAbsOnLEDGrid.map(v => maxAbs > 0 ? v / maxAbs : 0);
+  const normLED = result.ledAreaNorm.map(v => maxLED > 0 ? v / maxLED : 0);
+
+  plotTwoLines(
+    "plotOverlap",
+    [
+      {
+        x: result.ledWavelengths,
+        y: normAbs,
+        name: "Absorption"
+      },
+      {
+        x: result.ledWavelengths,
+        y: normLED,
+        name: "Emission"
+      }
+    ],
+    "Normalized (max=1) Overlap",
     "Wavelength (nm)",
-    "Photons"
+    "Normalized Absorption/Emission"
   );
 
-    plotTwoLines(
+  // 4. Fraction photons transmitted / absorbed
+  Plotly.newPlot(
     "plotFractions",
     [
       {
         x: result.ledWavelengths,
         y: result.FPT,
-        name: "Fraction Transmitted"
+        mode: "lines",
+        name: "Fraction Photons Transmitted",
+        xaxis: "x",
+        yaxis: "y"
       },
       {
         x: result.ledWavelengths,
         y: result.FPA,
-        name: "Fraction Absorbed"
+        mode: "lines",
+        name: "Fraction Photons Absorbed",
+        xaxis: "x2",
+        yaxis: "y2"
       }
     ],
-    "Photon Fractions",
-    "Wavelength (nm)",
-    "Fraction"
+    {
+      title: "Photon Fractions",
+      grid: { rows: 2, columns: 1, pattern: "independent" },
+      xaxis: { title: "Wavelength" },
+      yaxis: { title: "Fraction Photons Transmitted" },
+      xaxis2: { title: "Wavelength (nm)" },
+      yaxis2: { title: "Fraction Photons Absorbed" },
+      margin: { t: 50, r: 20, b: 55, l: 80 },
+      responsive: true
+    },
+    { responsive: true }
   );
 }
 
