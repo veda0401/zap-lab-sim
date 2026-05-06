@@ -402,4 +402,4 @@ function renderResults(result) {
     "Wavelength (nm)",
     "Photon Flux (photons·s⁻¹·nm⁻¹)"
   );
-});
+}
