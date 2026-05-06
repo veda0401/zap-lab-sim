@@ -20,9 +20,11 @@ function formatFixed(value, digits = 3) {
 
 async function readExcelFile(file) {
   const buffer = await file.arrayBuffer();
+
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
+
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
   const cleanRows = rows
@@ -56,15 +58,30 @@ function getInputs() {
     nGaussians: Number(document.getElementById("nGaussians").value)
   };
 
-  const requiredPositive = ["l1", "c1", "l2", "c2", "intensity", "rateFTIR", "monomerConc"];
+  const requiredPositive = [
+    "l1",
+    "c1",
+    "l2",
+    "c2",
+    "intensity",
+    "rateFTIR",
+    "monomerConc"
+  ];
+
   for (const key of requiredPositive) {
     if (!Number.isFinite(inputs[key]) || inputs[key] <= 0) {
       throw new Error(`${key} must be a positive number.`);
     }
   }
 
-  if (!Number.isInteger(inputs.nGaussians) || inputs.nGaussians < 1 || inputs.nGaussians > 5) {
-    throw new Error("Number of Gaussian components must be an integer from 1 to 5.");
+  if (
+    !Number.isInteger(inputs.nGaussians) ||
+    inputs.nGaussians < 1 ||
+    inputs.nGaussians > 5
+  ) {
+    throw new Error(
+      "Number of Gaussian components must be an integer from 1 to 5."
+    );
   }
 
   return inputs;
@@ -72,14 +89,18 @@ function getInputs() {
 
 function trapz(x, y) {
   if (x.length !== y.length || x.length < 2) {
-    throw new Error("trapz requires x and y arrays of the same length >= 2.");
+    throw new Error(
+      "trapz requires x and y arrays of the same length >= 2."
+    );
   }
 
   let area = 0;
+
   for (let i = 1; i < x.length; i++) {
     const dx = x[i] - x[i - 1];
     area += 0.5 * (y[i] + y[i - 1]) * dx;
   }
+
   return area;
 }
 
@@ -87,34 +108,39 @@ function gaussian(x, a, b, c) {
   return a * Math.exp(-(((x - b) / c) ** 2));
 }
 
-// Still an approximation, but improved to be a bit more stable.
 function buildGaussianFit(xVals, yVals, nGaussians) {
   const maxY = Math.max(...yVals);
+
   const minX = xVals[0];
   const maxX = xVals[xVals.length - 1];
+
   const span = maxX - minX;
+
   const width = Math.max(span / (3 * nGaussians), 1);
 
   const centers = [];
+
   for (let i = 0; i < nGaussians; i++) {
     centers.push(minX + ((i + 1) * span) / (nGaussians + 1));
   }
 
   const fitted = xVals.map((x) => {
     let sum = 0;
+
     for (const center of centers) {
       sum += gaussian(x, maxY / nGaussians, center, width);
     }
+
     return sum;
   });
 
-  // Scale fitted curve so total area matches original area
   const originalArea = trapz(xVals, yVals);
   const fitArea = trapz(xVals, fitted);
 
   if (fitArea <= 0) return [...yVals];
 
   const scale = originalArea / fitArea;
+
   return fitted.map((v) => v * scale);
 }
 
@@ -129,17 +155,24 @@ function interpolate(x, y, x0) {
     const mid = Math.floor((left + right) / 2);
 
     if (x[mid] === x0) return y[mid];
-    if (x[mid] < x0) left = mid + 1;
-    else right = mid - 1;
+
+    if (x[mid] < x0) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
   }
 
   const i = left;
+
   const x1 = x[i - 1];
   const x2 = x[i];
+
   const y1 = y[i - 1];
   const y2 = y[i];
 
   const t = (x0 - x1) / (x2 - x1);
+
   return y1 + t * (y2 - y1);
 }
 
@@ -150,57 +183,91 @@ function runCalculation(absData, ledData, inputs) {
   const ledWavelengths = ledData.map((r) => r[0]);
   const rawLED = ledData.map((r) => r[1]);
 
-  const extinction = absorbance.map((a) => a / (inputs.l1 * inputs.c1));
-  const newAbs = extinction.map((e) => e * inputs.l2 * inputs.c2);
+  const extinction = absorbance.map(
+    (a) => a / (inputs.l1 * inputs.c1)
+  );
+
+  const newAbs = extinction.map(
+    (e) => e * inputs.l2 * inputs.c2
+  );
 
   const ledMin = Math.min(...rawLED);
+
   const baseLED = rawLED.map((v) => v - ledMin);
 
   const ledIntegral = trapz(ledWavelengths, baseLED);
+
   if (ledIntegral === 0) {
     throw new Error("LED integral is zero after baselining.");
   }
 
   const conversionFactor = ledIntegral / inputs.intensity;
-  const ledAreaNorm = baseLED.map((v) => v / conversionFactor);
 
-    const gaussLEDOnLEDGrid = buildGaussianFit(
+  const ledAreaNorm = baseLED.map(
+    (v) => v / conversionFactor
+  );
+
+  const gaussLEDOnLEDGrid = buildGaussianFit(
     ledWavelengths,
     ledAreaNorm,
     inputs.nGaussians
   );
 
-  // Interpolate absorbance onto the LED wavelength grid
   const newAbsOnLEDGrid = ledWavelengths.map((w) =>
     interpolate(wavelengths, newAbs, w)
   );
 
-  // Use AREA-NORMALIZED LED for the actual photon calculations
-  // Keep Gaussian only for plotting/visualization
-  const NRG = ledWavelengths.map((w) => PLANCK * LIGHT_SPEED / (w * 1e-9));
-  const NP = ledAreaNorm.map((g, i) => (g / 1000) / NRG[i]);
+  const NRG = ledWavelengths.map(
+    (w) => PLANCK * LIGHT_SPEED / (w * 1e-9)
+  );
 
-  const FPT = newAbsOnLEDGrid.map((a) => 10 ** (-a));
+  const NP = ledAreaNorm.map(
+    (g, i) => (g / 1000) / NRG[i]
+  );
+
+  const FPT = newAbsOnLEDGrid.map(
+    (a) => 10 ** (-a)
+  );
+
   const FPA = FPT.map((v) => 1 - v);
 
-  const AP = NP.map((n, i) => n * FPA[i]);
+  const AP = NP.map(
+    (n, i) => n * FPA[i]
+  );
 
-  const totalAbsorbed = trapz(ledWavelengths, AP);
-  const totalLED = trapz(ledWavelengths, NP);
+  const totalAbsorbed = trapz(
+    ledWavelengths,
+    AP
+  );
+
+  const totalLED = trapz(
+    ledWavelengths,
+    NP
+  );
 
   if (totalLED === 0) {
     throw new Error("Total LED photons calculated as zero.");
   }
+
   if (totalAbsorbed === 0) {
     throw new Error("Total absorbed photons calculated as zero.");
   }
 
-  const efficiency = (totalAbsorbed / totalLED) * 100;
-  const moleculesConverted =
-    inputs.rateFTIR * inputs.l2 * inputs.monomerConc * AVOGADRO / 1000;
+  const efficiency =
+    (totalAbsorbed / totalLED) * 100;
 
-  const externalQY = moleculesConverted / totalLED;
-  const internalQY = moleculesConverted / totalAbsorbed;
+  const moleculesConverted =
+    inputs.rateFTIR *
+    inputs.l2 *
+    inputs.monomerConc *
+    AVOGADRO /
+    1000;
+
+  const externalQY =
+    moleculesConverted / totalLED;
+
+  const internalQY =
+    moleculesConverted / totalAbsorbed;
 
   return {
     wavelengths,
@@ -229,14 +296,31 @@ function runCalculation(absData, ledData, inputs) {
 function baseLayout(title, xLabel, yLabel) {
   return {
     title,
-    xaxis: { title: xLabel },
-    yaxis: { title: yLabel },
-    margin: { t: 50, r: 20, b: 55, l: 70 },
+    xaxis: {
+      title: xLabel
+    },
+    yaxis: {
+      title: yLabel
+    },
+    margin: {
+      t: 50,
+      r: 20,
+      b: 55,
+      l: 70
+    },
     responsive: true
   };
 }
 
-function plotLine(divId, x, y, title, xLabel, yLabel, name = "Data") {
+function plotLine(
+  divId,
+  x,
+  y,
+  title,
+  xLabel,
+  yLabel,
+  name = "Data"
+) {
   Plotly.newPlot(
     divId,
     [
@@ -252,7 +336,13 @@ function plotLine(divId, x, y, title, xLabel, yLabel, name = "Data") {
   );
 }
 
-function plotTwoLines(divId, traces, title, xLabel, yLabel) {
+function plotTwoLines(
+  divId,
+  traces,
+  title,
+  xLabel,
+  yLabel
+) {
   Plotly.newPlot(
     divId,
     traces.map((trace) => ({
@@ -269,30 +359,61 @@ function plotTwoLines(divId, traces, title, xLabel, yLabel) {
 function renderResults(result) {
   document.getElementById("results").innerHTML = `
     <div class="results-grid">
+
       <div class="metric-card">
-        <span class="metric-label">Total LED Photons</span>
-        <span class="metric-value">${formatExp(result.totalLED)}</span>
+        <span class="metric-label">
+          Total LED Photons
+        </span>
+        <span class="metric-value">
+          ${formatExp(result.totalLED)}
+        </span>
       </div>
+
       <div class="metric-card">
-        <span class="metric-label">Total Absorbed Photons</span>
-        <span class="metric-value">${formatExp(result.totalAbsorbed)}</span>
+        <span class="metric-label">
+          Total Absorbed Photons
+        </span>
+        <span class="metric-value">
+          ${formatExp(result.totalAbsorbed)}
+        </span>
       </div>
+
       <div class="metric-card">
-        <span class="metric-label">Absorption Efficiency</span>
-        <span class="metric-value">${formatFixed(result.efficiency)}%</span>
+        <span class="metric-label">
+          Absorption Efficiency
+        </span>
+        <span class="metric-value">
+          ${formatFixed(result.efficiency)}%
+        </span>
       </div>
+
       <div class="metric-card">
-        <span class="metric-label">Molecules Converted</span>
-        <span class="metric-value">${formatExp(result.moleculesConverted)}</span>
+        <span class="metric-label">
+          Molecules Converted
+        </span>
+        <span class="metric-value">
+          ${formatExp(result.moleculesConverted)}
+        </span>
       </div>
+
       <div class="metric-card">
-        <span class="metric-label">External Quantum Yield</span>
-        <span class="metric-value">${formatExp(result.externalQY)}</span>
+        <span class="metric-label">
+          External Quantum Yield
+        </span>
+        <span class="metric-value">
+          ${formatExp(result.externalQY)}
+        </span>
       </div>
+
       <div class="metric-card">
-        <span class="metric-label">Internal Quantum Yield</span>
-        <span class="metric-value">${formatExp(result.internalQY)}</span>
+        <span class="metric-label">
+          Internal Quantum Yield
+        </span>
+        <span class="metric-value">
+          ${formatExp(result.internalQY)}
+        </span>
       </div>
+
     </div>
   `;
 
@@ -326,12 +447,24 @@ function renderResults(result) {
     "mW / cm² nm"
   );
 
-  // 3. Normalized sample absorbance + LED overlap
-  const maxAbs = Math.max(...result.newAbsOnLEDGrid);
-  const maxLED = Math.max(...result.ledAreaNorm);
+  // 3. Normalized overlap
+  const maxAbs = Math.max(
+    ...result.newAbsOnLEDGrid
+  );
 
-  const normAbs = result.newAbsOnLEDGrid.map(v => maxAbs > 0 ? v / maxAbs : 0);
-  const normLED = result.ledAreaNorm.map(v => maxLED > 0 ? v / maxLED : 0);
+  const maxLED = Math.max(
+    ...result.ledAreaNorm
+  );
+
+  const normAbs =
+    result.newAbsOnLEDGrid.map((v) =>
+      maxAbs > 0 ? v / maxAbs : 0
+    );
+
+  const normLED =
+    result.ledAreaNorm.map((v) =>
+      maxLED > 0 ? v / maxLED : 0
+    );
 
   plotTwoLines(
     "plotOverlap",
@@ -352,7 +485,7 @@ function renderResults(result) {
     "Normalized"
   );
 
-  // 4. LED photons emitted
+  // 4. Photons emitted
   plotLine(
     "plotPhotonsEmitted",
     result.ledWavelengths,
@@ -362,17 +495,17 @@ function renderResults(result) {
     "Photons"
   );
 
-  // 5. Fraction photons absorbed
+  // 5. Fraction absorbed
   plotLine(
     "plotFractionAbsorbed",
     result.ledWavelengths,
     result.FPA,
     "Fraction Photons Absorbed",
     "Wavelength",
-    "Fraction Photons Absorbed"
+    "Fraction"
   );
 
-  // 6. Photons emitted + photons absorbed
+  // 6. Photons emitted + absorbed
   plotTwoLines(
     "plotPhotonsAbsorbed",
     [
@@ -391,33 +524,62 @@ function renderResults(result) {
     "Wavelength",
     "Photons"
   );
-
-  document.getElementById("runBtn").addEventListener("click", async () => {
-  try {
-    setStatus("Checking files and inputs...");
-
-    const absFile = document.getElementById("absFile").files[0];
-    const ledFile = document.getElementById("ledFile").files[0];
-
-    if (!absFile || !ledFile) {
-      throw new Error("Please upload both Excel files first.");
-    }
-
-    const inputs = getInputs();
-
-    setStatus("Reading Excel files...");
-    const absData = await readExcelFile(absFile);
-    const ledData = await readExcelFile(ledFile);
-
-    setStatus("Running calculations...");
-    const result = runCalculation(absData, ledData, inputs);
-
-    renderResults(result);
-    setStatus("Calculation complete.", "success");
-  } catch (error) {
-    console.error(error);
-    setStatus(error.message || "Something went wrong.", "error");
-  }
-});
-  
 }
+
+document.getElementById("runBtn").addEventListener(
+  "click",
+  async () => {
+    try {
+      setStatus(
+        "Checking files and inputs..."
+      );
+
+      const absFile =
+        document.getElementById("absFile")
+          .files[0];
+
+      const ledFile =
+        document.getElementById("ledFile")
+          .files[0];
+
+      if (!absFile || !ledFile) {
+        throw new Error(
+          "Please upload both Excel files first."
+        );
+      }
+
+      const inputs = getInputs();
+
+      setStatus("Reading Excel files...");
+
+      const absData =
+        await readExcelFile(absFile);
+
+      const ledData =
+        await readExcelFile(ledFile);
+
+      setStatus("Running calculations...");
+
+      const result = runCalculation(
+        absData,
+        ledData,
+        inputs
+      );
+
+      renderResults(result);
+
+      setStatus(
+        "Calculation complete.",
+        "success"
+      );
+    } catch (error) {
+      console.error(error);
+
+      setStatus(
+        error.message ||
+          "Something went wrong.",
+        "error"
+      );
+    }
+  }
+);
