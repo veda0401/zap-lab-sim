@@ -391,4 +391,33 @@ function renderResults(result) {
     "Wavelength",
     "Photons"
   );
+
+  document.getElementById("runBtn").addEventListener("click", async () => {
+  try {
+    setStatus("Checking files and inputs...");
+
+    const absFile = document.getElementById("absFile").files[0];
+    const ledFile = document.getElementById("ledFile").files[0];
+
+    if (!absFile || !ledFile) {
+      throw new Error("Please upload both Excel files first.");
+    }
+
+    const inputs = getInputs();
+
+    setStatus("Reading Excel files...");
+    const absData = await readExcelFile(absFile);
+    const ledData = await readExcelFile(ledFile);
+
+    setStatus("Running calculations...");
+    const result = runCalculation(absData, ledData, inputs);
+
+    renderResults(result);
+    setStatus("Calculation complete.", "success");
+  } catch (error) {
+    console.error(error);
+    setStatus(error.message || "Something went wrong.", "error");
+  }
+});
+  
 }
