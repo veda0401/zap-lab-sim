@@ -4,8 +4,10 @@ const AVOGADRO = 6.022e23;
 
 function setStatus(message, type = "info") {
   const status = document.getElementById("status");
-  status.textContent = message;
-  status.className = `status ${type}`;
+  if (status) {
+    status.textContent = message;
+    status.className = `status ${type}`;
+  }
 }
 
 function formatExp(value, digits = 4) {
@@ -55,10 +57,18 @@ function getInputs() {
     }
   }
 
+  if (!Number.isInteger(inputs.nGaussians) || inputs.nGaussians < 1 || inputs.nGaussians > 5) {
+    throw new Error("Number of Gaussian components must be an integer from 1 to 5.");
+  }
+
   return inputs;
 }
 
 function trapz(x, y) {
+  if (x.length !== y.length || x.length < 2) {
+    throw new Error("trapz requires x and y arrays of the same length.");
+  }
+
   let area = 0;
   for (let i = 1; i < x.length; i++) {
     area += 0.5 * (y[i] + y[i - 1]) * (x[i] - x[i - 1]);
@@ -144,15 +154,11 @@ function calculateQuantumYield(absData, ledData, inputs) {
     interpolate(wavelengths, newAbs, w)
   );
 
-  const NRG = ledWavelengths.map(
-    (w) => PLANCK * LIGHT_SPEED / (w * 1e-9)
-  );
-
+  const NRG = ledWavelengths.map((w) => PLANCK * LIGHT_SPEED / (w * 1e-9));
   const NP = ledAreaNorm.map((g, i) => (g / 1000) / NRG[i]);
 
   const FPT = newAbsOnLEDGrid.map((a) => 10 ** (-a));
   const FPA = FPT.map((v) => 1 - v);
-
   const AP = NP.map((n, i) => n * FPA[i]);
 
   const totalAbsorbed = trapz(ledWavelengths, AP);
@@ -192,52 +198,34 @@ function baseLayout(title, xLabel, yLabel) {
   return {
     title: {
       text: title,
-      font: {
-        size: 22
-      }
+      font: { size: 22 }
     },
-
     xaxis: {
       title: {
         text: xLabel,
-        font: {
-          size: 18
-        }
+        font: { size: 18 }
       },
-      tickfont: {
-        size: 14
-      },
+      tickfont: { size: 14 },
       automargin: true
     },
-
     yaxis: {
       title: {
         text: yLabel,
-        font: {
-          size: 18
-        }
+        font: { size: 18 }
       },
-      tickfont: {
-        size: 14
-      },
+      tickfont: { size: 14 },
       automargin: true
     },
-
     margin: {
       t: 80,
       r: 40,
-      b: 90,
-      l: 110
+      b: 95,
+      l: 120
     },
-
     showlegend: true,
-
     legend: {
-      font: {
-        size: 14
-      }
+      font: { size: 14 }
     },
-
     paper_bgcolor: "white",
     plot_bgcolor: "white"
   };
@@ -320,16 +308,8 @@ function renderResults(result) {
   plotTwoLines(
     "plotLEDGaussian",
     [
-      {
-        x: result.ledWavelengths,
-        y: result.ledAreaNorm,
-        name: "Raw LED"
-      },
-      {
-        x: result.ledWavelengths,
-        y: result.gaussLEDOnLEDGrid,
-        name: "Gaussian Fit"
-      }
+      { x: result.ledWavelengths, y: result.ledAreaNorm, name: "Raw LED" },
+      { x: result.ledWavelengths, y: result.gaussLEDOnLEDGrid, name: "Gaussian Fit" }
     ],
     "Raw LED and Gaussian Fit",
     "Wavelength (nm)",
@@ -350,16 +330,8 @@ function renderResults(result) {
   plotTwoLines(
     "plotOverlap",
     [
-      {
-        x: result.ledWavelengths,
-        y: normAbs,
-        name: "Sample"
-      },
-      {
-        x: result.ledWavelengths,
-        y: normLED,
-        name: "LED"
-      }
+      { x: result.ledWavelengths, y: normAbs, name: "Sample" },
+      { x: result.ledWavelengths, y: normLED, name: "LED" }
     ],
     "Normalized Absorbance and LED Overlap",
     "Wavelength (nm)",
@@ -387,19 +359,51 @@ function renderResults(result) {
   plotTwoLines(
     "plotPhotonsAbsorbed",
     [
-      {
-        x: result.ledWavelengths,
-        y: result.NP,
-        name: "Photons Emitted"
-      },
-      {
-        x: result.ledWavelengths,
-        y: result.AP,
-        name: "Photons Absorbed"
-      }
+      { x: result.ledWavelengths, y: result.NP, name: "Photons Emitted" },
+      { x: result.ledWavelengths, y: result.AP, name: "Photons Absorbed" }
     ],
     "Photons Emitted and Absorbed",
     "Wavelength (nm)",
     "Photon Flux (photons·s⁻¹·nm⁻¹)"
   );
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  const runBtn = document.getElementById("runBtn");
+
+  if (!runBtn) {
+    console.error("Run button not found.");
+    return;
+  }
+
+  runBtn.addEventListener("click", async () => {
+    try {
+      setStatus("Checking files and inputs...");
+
+      const absFile = document.getElementById("absFile").files[0];
+      const ledFile = document.getElementById("ledFile").files[0];
+
+      if (!absFile || !ledFile) {
+        throw new Error("Please upload both Excel files first.");
+      }
+
+      const inputs = getInputs();
+
+      setStatus("Reading Excel files...");
+
+      const absData = await readExcelFile(absFile);
+      const ledData = await readExcelFile(ledFile);
+
+      setStatus("Running calculations...");
+
+      const result = calculateQuantumYield(absData, ledData, inputs);
+
+      renderResults(result);
+
+      setStatus("Calculation complete.", "success");
+    } catch (error) {
+      console.error(error);
+      setStatus(error.message || "Something went wrong.", "error");
+    }
+  });
+});
