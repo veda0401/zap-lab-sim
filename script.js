@@ -176,7 +176,7 @@ function interpolate(x, y, x0) {
   return y1 + t * (y2 - y1);
 }
 
-function runCalculation(absData, ledData, inputs) {
+function calculateQuantumYield(absData, ledData, inputs) {
   const wavelengths = absData.map((r) => r[0]);
   const absorbance = absData.map((r) => r[1]);
 
@@ -245,14 +245,6 @@ function runCalculation(absData, ledData, inputs) {
     NP
   );
 
-  if (totalLED === 0) {
-    throw new Error("Total LED photons calculated as zero.");
-  }
-
-  if (totalAbsorbed === 0) {
-    throw new Error("Total absorbed photons calculated as zero.");
-  }
-
   const efficiency =
     (totalAbsorbed / totalLED) * 100;
 
@@ -273,15 +265,10 @@ function runCalculation(absData, ledData, inputs) {
     wavelengths,
     ledWavelengths,
     extinction,
-    newAbs,
-    rawLED,
-    baseLED,
     ledAreaNorm,
     gaussLEDOnLEDGrid,
     newAbsOnLEDGrid,
-    NRG,
     NP,
-    FPT,
     FPA,
     AP,
     totalAbsorbed,
@@ -296,19 +283,14 @@ function runCalculation(absData, ledData, inputs) {
 function baseLayout(title, xLabel, yLabel) {
   return {
     title,
-    xaxis: {
-      title: xLabel
-    },
-    yaxis: {
-      title: yLabel
-    },
+    xaxis: { title: xLabel },
+    yaxis: { title: yLabel },
     margin: {
       t: 50,
       r: 20,
       b: 55,
       l: 70
-    },
-    responsive: true
+    }
   };
 }
 
@@ -323,14 +305,12 @@ function plotLine(
 ) {
   Plotly.newPlot(
     divId,
-    [
-      {
-        x,
-        y,
-        mode: "lines",
-        name
-      }
-    ],
+    [{
+      x,
+      y,
+      mode: "lines",
+      name
+    }],
     baseLayout(title, xLabel, yLabel),
     { responsive: true }
   );
@@ -345,12 +325,7 @@ function plotTwoLines(
 ) {
   Plotly.newPlot(
     divId,
-    traces.map((trace) => ({
-      x: trace.x,
-      y: trace.y,
-      mode: trace.mode || "lines",
-      name: trace.name
-    })),
+    traces,
     baseLayout(title, xLabel, yLabel),
     { responsive: true }
   );
@@ -359,188 +334,56 @@ function plotTwoLines(
 function renderResults(result) {
   document.getElementById("results").innerHTML = `
     <div class="results-grid">
-
       <div class="metric-card">
-        <span class="metric-label">
-          Total LED Photons
-        </span>
-        <span class="metric-value">
-          ${formatExp(result.totalLED)}
-        </span>
-      </div>
-
-      <div class="metric-card">
-        <span class="metric-label">
-          Total Absorbed Photons
-        </span>
-        <span class="metric-value">
-          ${formatExp(result.totalAbsorbed)}
-        </span>
-      </div>
-
-      <div class="metric-card">
-        <span class="metric-label">
-          Absorption Efficiency
-        </span>
-        <span class="metric-value">
-          ${formatFixed(result.efficiency)}%
-        </span>
-      </div>
-
-      <div class="metric-card">
-        <span class="metric-label">
-          Molecules Converted
-        </span>
-        <span class="metric-value">
-          ${formatExp(result.moleculesConverted)}
-        </span>
-      </div>
-
-      <div class="metric-card">
-        <span class="metric-label">
-          External Quantum Yield
-        </span>
+        <span class="metric-label">External Quantum Yield</span>
         <span class="metric-value">
           ${formatExp(result.externalQY)}
         </span>
       </div>
 
       <div class="metric-card">
-        <span class="metric-label">
-          Internal Quantum Yield
-        </span>
+        <span class="metric-label">Internal Quantum Yield</span>
         <span class="metric-value">
           ${formatExp(result.internalQY)}
         </span>
       </div>
 
+      <div class="metric-card">
+        <span class="metric-label">Absorption Efficiency</span>
+        <span class="metric-value">
+          ${formatFixed(result.efficiency)}%
+        </span>
+      </div>
     </div>
   `;
 
-  // 1. Extinction coefficient
   plotLine(
     "plotExtinction",
     result.wavelengths,
     result.extinction,
     "Calculated Extinction Coefficient",
     "Wavelength",
-    "Extinction Coefficient"
-  );
-
-  // 2. Raw LED + Gaussian fit
-  plotTwoLines(
-    "plotLEDGaussian",
-    [
-      {
-        x: result.ledWavelengths,
-        y: result.ledAreaNorm,
-        name: "Raw LED"
-      },
-      {
-        x: result.ledWavelengths,
-        y: result.gaussLEDOnLEDGrid,
-        name: "Gaussian Fit"
-      }
-    ],
-    "Raw LED and Gaussian Fit",
-    "Wavelength",
-    "mW / cm² nm"
-  );
-
-  // 3. Normalized overlap
-  const maxAbs = Math.max(
-    ...result.newAbsOnLEDGrid
-  );
-
-  const maxLED = Math.max(
-    ...result.ledAreaNorm
-  );
-
-  const normAbs =
-    result.newAbsOnLEDGrid.map((v) =>
-      maxAbs > 0 ? v / maxAbs : 0
-    );
-
-  const normLED =
-    result.ledAreaNorm.map((v) =>
-      maxLED > 0 ? v / maxLED : 0
-    );
-
-  plotTwoLines(
-    "plotOverlap",
-    [
-      {
-        x: result.ledWavelengths,
-        y: normAbs,
-        name: "Sample"
-      },
-      {
-        x: result.ledWavelengths,
-        y: normLED,
-        name: "LED"
-      }
-    ],
-    "Normalized Absorbance and LED Overlap",
-    "Wavelength",
-    "Normalized"
-  );
-
-  // 4. Photons emitted
-  plotLine(
-    "plotPhotonsEmitted",
-    result.ledWavelengths,
-    result.NP,
-    "LED Photons Emitted",
-    "Wavelength",
-    "Photons"
-  );
-
-  // 5. Fraction absorbed
-  plotLine(
-    "plotFractionAbsorbed",
-    result.ledWavelengths,
-    result.FPA,
-    "Fraction Photons Absorbed",
-    "Wavelength",
-    "Fraction"
-  );
-
-  // 6. Photons emitted + absorbed
-  plotTwoLines(
-    "plotPhotonsAbsorbed",
-    [
-      {
-        x: result.ledWavelengths,
-        y: result.NP,
-        name: "Photons Emitted"
-      },
-      {
-        x: result.ledWavelengths,
-        y: result.AP,
-        name: "Photons Absorbed"
-      }
-    ],
-    "Photons Emitted and Absorbed",
-    "Wavelength",
-    "Photons"
+    "Extinction"
   );
 }
 
-document.getElementById("runBtn").addEventListener(
-  "click",
-  async () => {
+document.addEventListener("DOMContentLoaded", () => {
+  const runBtn = document.getElementById("runBtn");
+
+  if (!runBtn) {
+    console.error("Run button not found");
+    return;
+  }
+
+  runBtn.addEventListener("click", async () => {
     try {
-      setStatus(
-        "Checking files and inputs..."
-      );
+      setStatus("Checking files and inputs...");
 
       const absFile =
-        document.getElementById("absFile")
-          .files[0];
+        document.getElementById("absFile").files[0];
 
       const ledFile =
-        document.getElementById("ledFile")
-          .files[0];
+        document.getElementById("ledFile").files[0];
 
       if (!absFile || !ledFile) {
         throw new Error(
@@ -560,7 +403,7 @@ document.getElementById("runBtn").addEventListener(
 
       setStatus("Running calculations...");
 
-      const result = runCalculation(
+      const result = calculateQuantumYield(
         absData,
         ledData,
         inputs
@@ -572,14 +415,15 @@ document.getElementById("runBtn").addEventListener(
         "Calculation complete.",
         "success"
       );
+
     } catch (error) {
       console.error(error);
 
       setStatus(
         error.message ||
-          "Something went wrong.",
+        "Something went wrong.",
         "error"
       );
     }
-  }
-);
+  });
+});
