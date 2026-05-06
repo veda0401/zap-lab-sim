@@ -190,15 +190,56 @@ function calculateQuantumYield(absData, ledData, inputs) {
 
 function baseLayout(title, xLabel, yLabel) {
   return {
-    title,
-    xaxis: { title: xLabel },
-    yaxis: { title: yLabel },
+    title: {
+      text: title,
+      font: {
+        size: 22
+      }
+    },
+
+    xaxis: {
+      title: {
+        text: xLabel,
+        font: {
+          size: 18
+        }
+      },
+      tickfont: {
+        size: 14
+      },
+      automargin: true
+    },
+
+    yaxis: {
+      title: {
+        text: yLabel,
+        font: {
+          size: 18
+        }
+      },
+      tickfont: {
+        size: 14
+      },
+      automargin: true
+    },
+
     margin: {
-      t: 50,
-      r: 20,
-      b: 60,
-      l: 80
-    }
+      t: 80,
+      r: 40,
+      b: 90,
+      l: 110
+    },
+
+    showlegend: true,
+
+    legend: {
+      font: {
+        size: 14
+      }
+    },
+
+    paper_bgcolor: "white",
+    plot_bgcolor: "white"
   };
 }
 
