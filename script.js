@@ -296,37 +296,37 @@ function renderResults(result) {
     </div>
   `;
 
-  // 1. Calculated Extinction Coefficient
+  // 1. Extinction coefficient
   plotLine(
     "plotExtinction",
     result.wavelengths,
     result.extinction,
     "Calculated Extinction Coefficient",
-    "Wavelength (nm)",
-    "Extinction Coefficient (M⁻¹ cm⁻¹)"
+    "Wavelength",
+    "Extinction Coefficient"
   );
 
-  // 2. Corrected & Raw LED Emission Spectra
+  // 2. Raw LED + Gaussian fit
   plotTwoLines(
-    "plotLED",
+    "plotLEDGaussian",
     [
       {
         x: result.ledWavelengths,
-        y: result.rawLED,
+        y: result.ledAreaNorm,
         name: "Raw LED"
       },
       {
         x: result.ledWavelengths,
-        y: result.baseLED,
-        name: "Baselined"
+        y: result.gaussLEDOnLEDGrid,
+        name: "Gaussian Fit"
       }
     ],
-    "Corrected & Raw LED Emission Spectra",
+    "Raw LED and Gaussian Fit",
     "Wavelength",
-    "Counts"
+    "mW / cm² nm"
   );
 
-  // 3. Normalized (max=1) Overlap
+  // 3. Normalized sample absorbance + LED overlap
   const maxAbs = Math.max(...result.newAbsOnLEDGrid);
   const maxLED = Math.max(...result.ledAreaNorm);
 
@@ -339,78 +339,56 @@ function renderResults(result) {
       {
         x: result.ledWavelengths,
         y: normAbs,
-        name: "Absorption"
+        name: "Sample"
       },
       {
         x: result.ledWavelengths,
         y: normLED,
-        name: "Emission"
+        name: "LED"
       }
     ],
-    "Normalized (max=1) Overlap",
-    "Wavelength (nm)",
-    "Normalized Absorption/Emission"
+    "Normalized Absorbance and LED Overlap",
+    "Wavelength",
+    "Normalized"
   );
 
-  // 4. Fraction photons transmitted / absorbed
-  Plotly.newPlot(
-    "plotFractions",
+  // 4. LED photons emitted
+  plotLine(
+    "plotPhotonsEmitted",
+    result.ledWavelengths,
+    result.NP,
+    "LED Photons Emitted",
+    "Wavelength",
+    "Photons"
+  );
+
+  // 5. Fraction photons absorbed
+  plotLine(
+    "plotFractionAbsorbed",
+    result.ledWavelengths,
+    result.FPA,
+    "Fraction Photons Absorbed",
+    "Wavelength",
+    "Fraction Photons Absorbed"
+  );
+
+  // 6. Photons emitted + photons absorbed
+  plotTwoLines(
+    "plotPhotonsAbsorbed",
     [
       {
         x: result.ledWavelengths,
-        y: result.FPT,
-        mode: "lines",
-        name: "Fraction Photons Transmitted",
-        xaxis: "x",
-        yaxis: "y"
+        y: result.NP,
+        name: "Photons Emitted"
       },
       {
         x: result.ledWavelengths,
-        y: result.FPA,
-        mode: "lines",
-        name: "Fraction Photons Absorbed",
-        xaxis: "x2",
-        yaxis: "y2"
+        y: result.AP,
+        name: "Photons Absorbed"
       }
     ],
-    {
-      title: "Photon Fractions",
-      grid: { rows: 2, columns: 1, pattern: "independent" },
-      xaxis: { title: "Wavelength" },
-      yaxis: { title: "Fraction Photons Transmitted" },
-      xaxis2: { title: "Wavelength (nm)" },
-      yaxis2: { title: "Fraction Photons Absorbed" },
-      margin: { t: 50, r: 20, b: 55, l: 80 },
-      responsive: true
-    },
-    { responsive: true }
+    "Photons Emitted and Absorbed",
+    "Wavelength",
+    "Photons"
   );
 }
-
-document.getElementById("runBtn").addEventListener("click", async () => {
-  try {
-    setStatus("Checking files and inputs...");
-
-    const absFile = document.getElementById("absFile").files[0];
-    const ledFile = document.getElementById("ledFile").files[0];
-
-    if (!absFile || !ledFile) {
-      throw new Error("Please upload both Excel files first.");
-    }
-
-    const inputs = getInputs();
-
-    setStatus("Reading Excel files...");
-    const absData = await readExcelFile(absFile);
-    const ledData = await readExcelFile(ledFile);
-
-    setStatus("Running calculations...");
-    const result = runCalculation(absData, ledData, inputs);
-
-    renderResults(result);
-    setStatus("Calculation complete.", "success");
-  } catch (error) {
-    console.error(error);
-    setStatus(error.message || "Something went wrong.", "error");
-  }
-});
