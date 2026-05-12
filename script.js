@@ -82,23 +82,32 @@ function gaussian(x, a, b, c) {
 
 function buildGaussianFit(xVals, yVals, nGaussians) {
   const maxY = Math.max(...yVals);
-  const minX = xVals[0];
-  const maxX = xVals[xVals.length - 1];
-  const span = maxX - minX;
-  const width = Math.max(span / (3 * nGaussians), 1);
+  const maxIndex = yVals.indexOf(maxY);
+  const peakX = xVals[maxIndex];
 
-  const centers = [];
-  for (let i = 0; i < nGaussians; i++) {
-    centers.push(minX + ((i + 1) * span) / (nGaussians + 1));
+  const halfMax = maxY / 2;
+  const aboveHalf = xVals.filter((x, i) => yVals[i] >= halfMax);
+  const fwhm =
+    aboveHalf.length > 1
+      ? aboveHalf[aboveHalf.length - 1] - aboveHalf[0]
+      : (xVals[xVals.length - 1] - xVals[0]) / 6;
+
+  const sigma = Math.max(fwhm / 2.355, 1);
+
+  let fitted = xVals.map((x) =>
+    maxY * Math.exp(-0.5 * ((x - peakX) / sigma) ** 2)
+  );
+
+  const originalArea = trapz(xVals, yVals);
+  const fitArea = trapz(xVals, fitted);
+
+  if (fitArea > 0) {
+    const scale = originalArea / fitArea;
+    fitted = fitted.map((v) => v * scale);
   }
 
-  const fitted = xVals.map((x) => {
-    let sum = 0;
-    for (const center of centers) {
-      sum += gaussian(x, maxY / nGaussians, center, width);
-    }
-    return sum;
-  });
+  return fitted;
+}
 
   const originalArea = trapz(xVals, yVals);
   const fitArea = trapz(xVals, fitted);
@@ -194,60 +203,48 @@ function calculateQuantumYield(absData, ledData, inputs) {
   };
 }
 
-function baseLayout(title, xLabel, yLabel) {
+function baseLayout(plotNumber, xLabel, yLabel, options = {}) {
   return {
-    title: {
-      text: title,
-      font: { size: 22 }
-    },
+    annotations: [
+      {
+        text: `<b>${plotNumber}</b>`,
+        xref: "paper",
+        yref: "paper",
+        x: 0,
+        y: 1.12,
+        showarrow: false,
+        font: { size: 20 }
+      }
+    ],
     xaxis: {
-      title: {
-        text: xLabel,
-        font: { size: 18 }
-      },
+      title: { text: xLabel, font: { size: 18 } },
       tickfont: { size: 14 },
       automargin: true
     },
     yaxis: {
-      title: {
-        text: yLabel,
-        font: { size: 18 }
-      },
+      title: { text: yLabel, font: { size: 18 } },
       tickfont: { size: 14 },
-      automargin: true
+      automargin: true,
+      ...(options.scientificY ? { tickformat: ".2e" } : {})
     },
-    margin: {
-      t: 80,
-      r: 40,
-      b: 95,
-      l: 120
-    },
-    showlegend: true,
-    legend: {
-      font: { size: 14 }
-    },
+    margin: { t: 55, r: 40, b: 95, l: 120 },
+    showlegend: options.showLegend ?? true,
+    legend: { font: { size: 14 } },
     paper_bgcolor: "white",
     plot_bgcolor: "white"
   };
 }
 
-function plotLine(divId, x, y, title, xLabel, yLabel, name = "Data") {
+function plotLine(divId, x, y, plotNumber, xLabel, yLabel, name = "Data", options = {}) {
   Plotly.newPlot(
     divId,
-    [
-      {
-        x,
-        y,
-        mode: "lines",
-        name
-      }
-    ],
-    baseLayout(title, xLabel, yLabel),
+    [{ x, y, mode: "lines", name }],
+    baseLayout(plotNumber, xLabel, yLabel, options),
     { responsive: true }
   );
 }
 
-function plotTwoLines(divId, traces, title, xLabel, yLabel) {
+function plotTwoLines(divId, traces, plotNumber, xLabel, yLabel, options = {}) {
   Plotly.newPlot(
     divId,
     traces.map((trace) => ({
@@ -256,7 +253,7 @@ function plotTwoLines(divId, traces, title, xLabel, yLabel) {
       mode: "lines",
       name: trace.name
     })),
-    baseLayout(title, xLabel, yLabel),
+    baseLayout(plotNumber, xLabel, yLabel, options),
     { responsive: true }
   );
 }
@@ -296,76 +293,72 @@ function renderResults(result) {
     </div>
   `;
 
-  plotLine(
-    "plotExtinction",
-    result.wavelengths,
-    result.extinction,
-    "Calculated Extinction Coefficient",
-    "Wavelength (nm)",
-    "Extinction Coefficient (L·mol⁻¹·cm⁻¹)"
-  );
+ plotLine(
+  "plotExtinction",
+  result.wavelengths,
+  result.extinction,
+  "1",
+  "Wavelength (nm)",
+  "Calculated Extinction (M-1 cm-1)",
+  "Data",
+  { scientificY: true, showLegend: false }
+);
 
-  plotTwoLines(
-    "plotLEDGaussian",
-    [
-      { x: result.ledWavelengths, y: result.ledAreaNorm, name: "Raw LED" },
-      { x: result.ledWavelengths, y: result.gaussLEDOnLEDGrid, name: "Gaussian Fit" }
-    ],
-    "Raw LED and Gaussian Fit",
-    "Wavelength (nm)",
-    "LED Intensity (mW·cm⁻²·nm⁻¹)"
-  );
+plotTwoLines(
+  "plotLEDGaussian",
+  [
+    { x: result.ledWavelengths, y: result.ledAreaNorm, name: "Raw LED" },
+    { x: result.ledWavelengths, y: result.gaussLEDOnLEDGrid, name: "Gaussian Fit" }
+  ],
+  "2",
+  "Wavelength (nm)",
+  "mW cm-2 nm-1"
+);
 
-  const maxAbs = Math.max(...result.newAbsOnLEDGrid);
-  const maxLED = Math.max(...result.ledAreaNorm);
+plotTwoLines(
+  "plotOverlap",
+  [
+    { x: result.ledWavelengths, y: normAbs, name: "Sample" },
+    { x: result.ledWavelengths, y: normLED, name: "LED" }
+  ],
+  "3",
+  "Wavelength (nm)",
+  "Normalized Intensity"
+);
 
-  const normAbs = result.newAbsOnLEDGrid.map((v) =>
-    maxAbs > 0 ? v / maxAbs : 0
-  );
+plotLine(
+  "plotPhotonsEmitted",
+  result.ledWavelengths,
+  result.NP,
+  "4",
+  "Wavelength (nm)",
+  "photons",
+  "Data",
+  { scientificY: true, showLegend: false }
+);
 
-  const normLED = result.ledAreaNorm.map((v) =>
-    maxLED > 0 ? v / maxLED : 0
-  );
+plotLine(
+  "plotFractionAbsorbed",
+  result.ledWavelengths,
+  result.FPA,
+  "5",
+  "Wavelength (nm)",
+  "Fraction Absorbed",
+  "Data",
+  { showLegend: false }
+);
 
-  plotTwoLines(
-    "plotOverlap",
-    [
-      { x: result.ledWavelengths, y: normAbs, name: "Sample" },
-      { x: result.ledWavelengths, y: normLED, name: "LED" }
-    ],
-    "Normalized Absorbance and LED Overlap",
-    "Wavelength (nm)",
-    "Normalized Intensity"
-  );
-
-  plotLine(
-    "plotPhotonsEmitted",
-    result.ledWavelengths,
-    result.NP,
-    "LED Photons Emitted",
-    "Wavelength (nm)",
-    "Photon Flux (photons·s⁻¹·nm⁻¹)"
-  );
-
-  plotLine(
-    "plotFractionAbsorbed",
-    result.ledWavelengths,
-    result.FPA,
-    "Fraction Photons Absorbed",
-    "Wavelength (nm)",
-    "Fraction Absorbed"
-  );
-
-  plotTwoLines(
-    "plotPhotonsAbsorbed",
-    [
-      { x: result.ledWavelengths, y: result.NP, name: "Photons Emitted" },
-      { x: result.ledWavelengths, y: result.AP, name: "Photons Absorbed" }
-    ],
-    "Photons Emitted and Absorbed",
-    "Wavelength (nm)",
-    "Photon Flux (photons·s⁻¹·nm⁻¹)"
-  );
+plotTwoLines(
+  "plotPhotonsAbsorbed",
+  [
+    { x: result.ledWavelengths, y: result.NP, name: "Photons Emitted" },
+    { x: result.ledWavelengths, y: result.AP, name: "Photons Absorbed" }
+  ],
+  "6",
+  "Wavelength (nm)",
+  "photons",
+  { scientificY: true }
+);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
